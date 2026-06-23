@@ -45,7 +45,6 @@ Haishu Tan<sup>1</sup>
 - **Motion-Aware Feature Alignment Module (MAFM)**: Coarse-to-fine flow warping with cross-modal residual refinement and motion-mask-gated temporal aggregation
 - **Motion-Guided Dual-Interaction Module (MDIM)**: Separate branches for static textures and dynamic salient regions
 - **Efficient sparse attention**: Top-K patch selection (τ=0.3) reduces computation while maintaining long-range dependencies
-- **YCbCr color preservation**: Fused frames inherit Cb/Cr from visible images for accurate color reproduction
 
 ---
 
