@@ -197,7 +197,6 @@ python test.py --exp_path MAVFusion-M3SVD \
     --dataset_name MyDataset \
     --base_data_dir /data/
 
-# Output: 51 fused frames in output/MAVFusion-M3SVD/test_results/latest/eval_visual/IVF-MyDataset/fused_result/
 ```
 
 ### Training
