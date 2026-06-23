@@ -16,8 +16,6 @@ Haishu Tan<sup>1</sup>
 
 <sup>1</sup>Foshan University · <sup>2</sup>Kunming University of Science and Technology · <sup>3</sup>China University of Mining and Technology
 
-<sup>*</sup>Equal contribution · <sup>†</sup>Corresponding author
-
 ---
 
 </div>
