@@ -62,8 +62,6 @@ pip install -r requirements.txt
 
 ### Download Pretrained Weights
 
-### Download Pretrained Weights
-
 #### 1. SEA-RAFT optical flow model (automated)
 
 ```bash
