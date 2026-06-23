@@ -1,0 +1,15 @@
+numpy
+matplotlib
+transformers>=4.32.1
+omegaconf
+tensorboard
+wandb
+einops
+imageio
+accelerate
+scipy
+torchshow
+tabulate
+pandas
+opencv-python
+moviepy==1.0.3

@@ -1,0 +1,204 @@
+# -*- coding: utf-8 -*-
+# MAVFusion: evaluation / inference entry point
+# Authors: Xilai Li, Weijun Jiang, Xiaosong Li, Yang Liu, Hongbin Wang, Tao Ye, Huafeng Li, Haishu Tan (ECCV 2026)
+# Engineering scaffolding adapted from UniVF (Zixiang Zhao et al., NeurIPS 2025 Spotlight).
+
+import os
+import argparse
+import logging
+import time
+import warnings
+from pathlib import Path
+
+import torch
+from omegaconf import OmegaConf
+from torch.utils.data import DataLoader
+from tqdm import tqdm
+
+from src.dataset.base_two_modal_dataset import DatasetMode
+from src.dataset import get_multi_frame_dataset
+from src.model.net import VideoFusion
+from src.util.io import pred_2_8bit, save_image
+from src.util.logging_util import setup_logging
+from tools.prepare_dataset import run as prepare_dataset_run
+
+warnings.filterwarnings("ignore")
+
+
+DATASET_TO_YAML = {
+    "VTMOT":     "config/dataset/IVF/VTMOT/vtmot_5-frame.yaml",
+    "M3SVD":     "config/dataset/IVF/M3SVD/M3SVD_5-frame.yaml",
+    "HDO":       "config/dataset/IVF/HDO/HDO_5-frame.yaml",
+    "MMVS":      "config/dataset/IVF/MMVS/MMVS_5-frame.yaml",
+    "Harvard":   "config/dataset/IVF/Harvard/Harvard_5-frame.yaml",
+    "MSRS":      "config/dataset/IVF/MSRS/MSRS_5-frame.yaml",
+    "M3FD":      "config/dataset/IVF/M3FD/M3FD_5-frame.yaml",
+    "LLVIP":     "config/dataset/IVF/LLVIP/LLVIP_5-frame.yaml",
+}
+
+IVF_CONFIG = "config/train/ivf-train.yaml"
+
+
+def parse_args():
+    parser = argparse.ArgumentParser(description="MAVFusion inference with FPS measurement")
+    parser.add_argument("--exp_path", type=str, required=True, help="Experiment directory")
+    parser.add_argument("--ckpt_path", type=str, help="Model checkpoint name (default: latest)")
+    parser.add_argument("--dataset_name", type=str, required=True, help=f"Dataset name (choices: {sorted(DATASET_TO_YAML.keys())})")
+    parser.add_argument("--base_data_dir", type=str, default="data2", help="Base directory of the dataset")
+    parser.add_argument("--batch_size", type=int, default=1, help="Batch size")
+    parser.add_argument("--num_workers", type=int, default=8, help="Number of DataLoader workers")
+    parser.add_argument("--device", type=str, default="cuda" if torch.cuda.is_available() else "cpu", help="Device")
+    parser.add_argument("--no_save_vis", action="store_true", help="Do not save visualization results")
+    parser.add_argument("--log_level", type=str, default="INFO", help="Logging level")
+    # ---- one-shot data prep shortcuts ----
+    parser.add_argument(
+        "--raw_data_dir", type=str, default=None,
+        help="Path to a directory of paired multi-modal video frames; the prep "
+             "tool will auto-generate split.json / CSVs / dataset YAML on the fly. "
+             "Overrides --data_cfg and --base_data_dir.",
+    )
+    parser.add_argument(
+        "--raw_modality_dirs", nargs=2, default=None, metavar=("MOD_A", "MOD_B"),
+        help="Subdirectory names for the two modalities (default: infrared visible).",
+    )
+    parser.add_argument(
+        "--raw_split_seed", type=int, default=2025,
+        help="Random seed for the auto-generated train/test split.",
+    )
+    parser.add_argument(
+        "--raw_dataset_name", type=str, default=None,
+        help="Dataset name for generated files (default: basename of --raw_data_dir).",
+    )
+    parser.add_argument(
+        "--raw_file_ext", type=str, default=".jpg",
+        help="Image extension to include when auto-discovering frames.",
+    )
+    parser.add_argument(
+        "--force_prep", action="store_true",
+        help="Overwrite existing split.json / CSVs when --raw_data_dir is set.",
+    )
+    return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    ckpt_name = args.ckpt_path if args.ckpt_path else "latest"
+
+    output_dir = os.path.join("output", args.exp_path, "test_results", ckpt_name)
+    setup_logging(output_dir, file_log_level="INFO", console_log_level=args.log_level.upper())
+
+    device = torch.device(args.device)
+
+    # --- One-shot data prep shortcut ---
+    if args.raw_data_dir:
+        raw_path = Path(args.raw_data_dir).expanduser().resolve()
+        if not raw_path.is_dir():
+            raise NotADirectoryError(f"--raw_data_dir is not a directory: {raw_path}")
+        modality_dirs = (
+            tuple(args.raw_modality_dirs)
+            if args.raw_modality_dirs
+            else ("infrared", "visible")
+        )
+        outputs = prepare_dataset_run(
+            source=str(raw_path),
+            task_name="IVF",
+            dataset_name=args.raw_dataset_name,
+            modality_dirs=modality_dirs,
+            split_seed=args.raw_split_seed,
+            file_ext=args.raw_file_ext,
+            force=args.force_prep,
+        )
+        args.base_data_dir = str(raw_path.parent) + "/"
+        args.data_cfg = str(outputs["yaml"])
+        logging.info(f"Auto-prepared dataset from {raw_path}; using YAML {args.data_cfg}")
+
+    if not getattr(args, "data_cfg", None):
+        # First try user-prepared dataset (auto-generated by tools/prepare_dataset.py)
+        user_yaml = Path(f"config/dataset/IVF/{args.dataset_name}/{args.dataset_name}_5-frame.yaml")
+        if user_yaml.exists():
+            args.data_cfg = str(user_yaml)
+            logging.info(f"Using user-prepared dataset config: {args.data_cfg}")
+        # Fall back to built-in datasets
+        elif args.dataset_name in DATASET_TO_YAML:
+            args.data_cfg = DATASET_TO_YAML[args.dataset_name]
+        else:
+            raise ValueError(
+                f"Unsupported dataset_name '{args.dataset_name}'. "
+                f"Available built-in: {sorted(DATASET_TO_YAML.keys())}. "
+                f"Or run: python tools/prepare_dataset.py --source /path/to/data --dataset-name {args.dataset_name}"
+            )
+
+    args.config = IVF_CONFIG
+    cfg = OmegaConf.load(args.config)
+    model_path = os.path.join("output", args.exp_path, "checkpoint", ckpt_name, "model.pth")
+
+    logging.info("Initializing model...")
+    model = VideoFusion(model_config=cfg).to(device).eval()
+    model.load_state_dict(torch.load(model_path, map_location=device))
+
+    data_cfg = OmegaConf.load(args.data_cfg)
+    dataset = get_multi_frame_dataset(
+        data_cfg, base_data_dir=args.base_data_dir, mode=DatasetMode.TEST
+    )
+    dataloader = DataLoader(
+        dataset, batch_size=args.batch_size, shuffle=False, num_workers=args.num_workers
+    )
+    dataset_name = getattr(dataset, "disp_name", args.dataset_name)
+
+    vis_dir = os.path.join(output_dir, "eval_visual", dataset_name, "fused_result")
+    if not args.no_save_vis:
+        os.makedirs(vis_dir, exist_ok=True)
+
+    starter, ender = torch.cuda.Event(enable_timing=True), torch.cuda.Event(enable_timing=True)
+    total_latency_ms = 0.0
+    total_output_frames = 0
+    count = 0
+
+    logging.info("Starting inference loop...")
+    with torch.no_grad():
+        for i, batch in enumerate(tqdm(dataloader, desc=f"Testing {dataset_name}")):
+            ir_img = batch["ir"].to(device)
+            rgb_img = batch["rgb"].to(device)
+
+            torch.cuda.synchronize()
+            starter.record()
+            fusion_pred = model(ir_img, rgb_img)
+            ender.record()
+            torch.cuda.synchronize()
+
+            if i > 5:  # Warm-up skip
+                total_latency_ms += starter.elapsed_time(ender)
+                total_output_frames += fusion_pred.shape[1]
+                count += 1
+
+            if not args.no_save_vis:
+                vis_8bit = pred_2_8bit(fusion_pred, ir_img, rgb_img)
+                middle_idx = ir_img.shape[1] // 2
+                ir_path = batch["data_path_ls_dict"]["ir"][middle_idx][0]
+                seq_name = os.path.dirname(ir_path).split(os.sep)[0]
+                frame_stem = os.path.splitext(os.path.basename(ir_path))[0]
+                file_name = f"{seq_name}_{frame_stem}.png"
+                save_image(vis_8bit, os.path.join(vis_dir, file_name))
+
+            torch.cuda.empty_cache()
+
+    if count > 0:
+        avg_forward_ms = total_latency_ms / count
+        time_per_image_ms = total_latency_ms / total_output_frames
+        fps = 1000.0 / time_per_image_ms
+        print("\n" + "=" * 50)
+        print(f"PERFORMANCE REPORT - Dataset: {dataset_name}")
+        print(f"Total Forward Passes: {count}")
+        print(f"Total Images Generated: {total_output_frames}")
+        print("-" * 50)
+        print(f"Avg Forward Latency: {avg_forward_ms:.2f} ms")
+        print(f"Time per Fused Image: {time_per_image_ms:.2f} ms")
+        print(f"Final Inference FPS: {fps:.2f}")
+        print("=" * 50 + "\n")
+        logging.info(f"Final Inference FPS: {fps:.2f}")
+    else:
+        print("Warning: No samples were processed for timing.")
+
+
+if __name__ == "__main__":
+    main()
