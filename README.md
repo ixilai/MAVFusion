@@ -72,6 +72,8 @@ This will download the SEA-RAFT checkpoint automatically.
 
 You can also download at [(Google Drive)](https://drive.google.com/file/d/1C-pSoCi4qJREyL-eaOkWBWxsANAe3ZuS/view?usp=sharing)
 
+You should place it in the "checkpoint/" directory.
+
 #### 2. MAVFusion pretrained model (manual download required)
 
 The MAVFusion checkpoint can be downloaded separately from Google Drive:
