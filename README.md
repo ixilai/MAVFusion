@@ -62,11 +62,43 @@ pip install -r requirements.txt
 
 ### Download Pretrained Weights
 
-```bash
-# Download SEA-RAFT optical flow model
-bash src/script/download_searaft_ckpt.sh
+### Download Pretrained Weights
 
-# MAVFusion checkpoint is included in checkpoint/latest/model.pth
+#### 1. SEA-RAFT optical flow model (automated)
+
+```bash
+bash src/script/download_searaft_ckpt.sh
+```
+
+This will download the SEA-RAFT checkpoint automatically.
+
+#### 2. MAVFusion pretrained model (manual download required)
+
+The MAVFusion checkpoint can be downloaded separately from Google Drive:
+
+**Download link**: [MAVFusion model.pth (Google Drive)](https://drive.google.com/file/d/1KHRmjEUWVAKDQEZJdwIWA6ob32xF3__7/view?usp=sharing)
+
+**Installation steps**:
+
+```bash
+# 1. Download model.pth from the Google Drive link above
+
+# 2. Create the checkpoint directory
+mkdir -p checkpoint/latest
+
+# 3. Move the downloaded file to the correct location
+mv ~/Downloads/model.pth checkpoint/latest/model.pth
+
+# 4. Verify the file exists
+ls -lh checkpoint/latest/model.pth
+```
+
+**Alternative: Download via gdown (if you have it installed)**:
+
+```bash
+pip install gdown
+mkdir -p checkpoint/latest
+gdown 1KHRmjEUWVAKDQEZJdwIWA6ob32xF3__7 -O checkpoint/latest/model.pth
 ```
 
 ### Inference
