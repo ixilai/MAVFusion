@@ -93,14 +93,6 @@ mv ~/Downloads/model.pth checkpoint/latest/model.pth
 ls -lh checkpoint/latest/model.pth
 ```
 
-**Alternative: Download via gdown (if you have it installed)**:
-
-```bash
-pip install gdown
-mkdir -p checkpoint/latest
-gdown 1KHRmjEUWVAKDQEZJdwIWA6ob32xF3__7 -O checkpoint/latest/model.pth
-```
-
 ### Inference
 
 #### Option 1: Test on prepared datasets
