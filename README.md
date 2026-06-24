@@ -1,6 +1,6 @@
 <div align="center">
 
-# (ECCV 26) MAVFusion: Efficient Infrared and Visible Video Fusion via Motion-Aware Sparse Interaction
+# MAVFusion: Efficient Infrared and Visible Video Fusion via Motion-Aware Sparse Interaction (ECCV 2026)
 
 [![Paper](https://img.shields.io/badge/Paper-PDF-c1121f?style=for-the-badge)](https://arxiv.org/pdf/2604.01958)
 [![License](https://img.shields.io/badge/License-MIT-06d6a0?style=for-the-badge)](LICENSE)
