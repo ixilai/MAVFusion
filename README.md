@@ -334,11 +334,13 @@ Output: `output_demo/VTMOT-demo/fused_result.mp4`
 If you find MAVFusion useful in your research, please cite:
 
 ```bibtex
-@article{li2026mavfusion,
+@inproceedings{li2026mavfusion,
   title={MAVFusion: Efficient Infrared and Visible Video Fusion via Motion-Aware Sparse Interaction},
   author={Li, Xilai and Jiang, Weijun and Li, Xiaosong and Liu, Yang and Wang, Hongbin and Ye, Tao and Li, Huafeng and Tan, Haishu},
-  journal={arXiv preprint arXiv:2604.01958},
-  year={2026}
+  booktitle={European Conference on Computer Vision},
+  pages={641--658},
+  year={2026},
+  organization={Springer}
 }
 ```
 
